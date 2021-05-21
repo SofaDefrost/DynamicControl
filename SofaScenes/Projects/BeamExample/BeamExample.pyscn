@@ -1,0 +1,88 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+###########################################################################
+#                         Matlab toolbox for SOFA                         #
+#                                                                         #
+#				                                                          # 
+# This plugin is distributed under the GNU LGPL (Lesser General           #
+# Public License) license with the same conditions than SOFA.             #
+#                                                                         #
+# Contributors: Defrost team  (INRIA, University of Lille, CNRS,          #
+#               Ecole Centrale de Lille)                                  #
+#                                                                         #
+# Contact information: https://project.inria.fr/softrobot/contact/        #
+#                                                                         #
+###########################################################################
+
+
+
+import os
+import sys
+
+dirPath = os.path.dirname(os.path.abspath(__file__))+'/'
+sys.path.append(dirPath+'../../PythonScripts/')
+
+from tools.parameters import *
+
+totalMass=0.1
+pRatio=0.3
+yModulus=5e6
+addLoad=0
+mainName="BeamExample"
+isUsingBeamAdapter = 0
+isUsingReduction = 0
+nbAct=2
+nbEff = 1
+idxEffector=[14]
+maxForceActuators = 60
+
+def createScene(rootNode):                
+                rootNode.findData('gravity').value = "0 -9810 0"
+                rootNode.findData('dt').value = 0.05
+
+                rootNode.createObject('FreeMotionAnimationLoop')
+                rootNode.createObject('GenericConstraintSolver',  tolerance=0.001, maxIterations=1000)
+
+                rootNode.createObject('RequiredPlugin', pluginName='SoftRobots')
+                rootNode.createObject('RequiredPlugin', pluginName='SofaPython')
+                rootNode.createObject('RequiredPlugin', pluginName='SofaPreconditioner')
+                rootNode.createObject('RequiredPlugin', pluginName='SofaSparseSolver')
+
+                rootNode.createObject('VisualStyle', displayFlags='showForceFields hideVisualModels showBehaviorModels hideCollisionModels hideBoundingCollisionModels showInteractionForceFields hideWireframe')
+
+                if addController:
+                                # Load python script controller
+                    # forcesCables is used in simulations to change the equilibrium point where the model is linearized
+                    forcesCables=[0, 0]      # default value, the linearization will be done under position when only gravity applies
+                    #forcesCables=[31, 0]    # to linearize at another point, set forcesCables manually
+                    chooseController(simu,rootNode, nbAct, nbEff, mainName, idxEffector, isUsingReduction,isUsingBeamAdapter, \
+        forcesCables, pathToData, modelName, maxForceActuators, addLoad)  
+
+
+                BeamExample = rootNode.createChild('BeamExample')
+                BeamExample.createObject('EulerImplicitSolver', name="odesolver", rayleighStiffness=0.1, rayleighMass=0.1)
+                BeamExample.createObject('ShewchukPCGLinearSolver', name='linearSolver',iterations=200, tolerance=1.0e-18, preconditioners="preconditioner")
+                BeamExample.createObject('RegularGridTopology', name="SoftBeam", nx="5", ny="2", nz="2", min="0 0 0", max="1 0.2 0.2")     
+      
+                BeamExample.createObject('HexahedronSetGeometryAlgorithms')
+                BeamExample.createObject('MechanicalObject', name="meca")
+                BeamExample.createObject('HexahedronFEMForceField', template='Vec3d', youngModulus=yModulus, poissonRatio=pRatio, method="large")    
+                BeamExample.createObject('DiagonalMass', totalMass=totalMass)
+
+                BeamExample.createObject('SparseLDLSolver', name="preconditioner")
+                BeamExample.createObject('BoxROI', name="boxROI", box="-0.01 -0.01 -0.01 0.1 0.2 0.2", drawBoxes="true")
+                BeamExample.createObject('RestShapeSpringsForceField', points='@boxROI.indices', stiffness=1e12)
+
+                BeamExample.createObject('GenericConstraintCorrection', name='GCS', solverName='preconditioner')
+
+                constraintPoints = BeamExample.createChild('constraintPoints')
+                constraintPoints.createObject('MechanicalObject',name='meca', position="1 0.2 0.1 1 0.1 0.2")
+                constraintPoints.createObject('CableConstraint', name='actuator0',template='Vec3d', 
+                        indices=0, value=0, valueType='force', pullPoint="1 0.5 0.1", minForce=0)
+                constraintPoints.createObject('CableConstraint', name='actuator1',template='Vec3d', 
+                        indices=1, value=0, valueType='force', pullPoint="1 0.1 0.5", minForce=0)
+                constraintPoints.createObject('BarycentricMapping', mapForces="false", mapMasses="false")
+
+
+                return rootNode      

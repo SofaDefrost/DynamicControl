@@ -1,0 +1,46 @@
+###########################################################################
+#                         Matlab toolbox for SOFA                         #
+#                                                                         #
+#				                                                          # 
+# This plugin is distributed under the GNU LGPL (Lesser General           #
+# Public License) license with the same conditions than SOFA.             #
+#                                                                         #
+# Contributors: Defrost team  (INRIA, University of Lille, CNRS,          #
+#               Ecole Centrale de Lille)                                  #
+#                                                                         #
+# Contact information: https://project.inria.fr/softrobot/contact/        #
+#                                                                         #
+###########################################################################
+
+import Sofa
+
+def createScene(rootNode):
+
+                rootNode.findData('gravity').value="0 0 -9.810"
+                rootNode.findData('dt').value=0.01
+
+                rootNode.createObject('RequiredPlugin', name='SoftRobots', pluginName='SoftRobots')
+                rootNode.createObject('RequiredPlugin', name='SofaPython', pluginName='SofaPython')
+                rootNode.createObject('VisualStyle', displayFlags="showCollision showVisualModels showBehaviorModels showForceFields showInteractionForceFields")
+
+                rootNode.createObject('FreeMotionMasterSolver')
+                rootNode.createObject('GenericConstraintSolver', maxIterations="1000", tolerance="0.001")
+                rootNode.createObject('PythonScriptController', filename='controller.py', classname='Test')
+
+                Beam = rootNode.createChild('Beam')
+                Beam.createObject('EulerImplicitSolver', name="odesolver", rayleighStiffness="0.1", rayleighMass="0.1")
+                Beam.createObject('ShewchukPCGLinearSolver', iterations="1", name="linearsolver", tolerance="1e-5", preconditioners="preconditioner", use_precond="true", update_step="1")
+                Beam.createObject('RegularGridTopology', name="SoftBeam", nx="5", ny="2", nz="2", min="-0.050 -0.010 -0.0025", max="0.050 0.010 0.0025")     
+
+                Beam.createObject('MechanicalObject', name="hexas", template="Vec3d")
+                Beam.createObject('UniformMass', totalMass='0.01')
+
+                Beam.createObject('SparseLDLSolver', name="preconditioner")
+                Beam.createObject('LinearSolverConstraintCorrection', solverName="preconditioner")
+
+                Beam.createObject('HexahedronFEMForceField', youngModulus="300000", poissonRatio="0.2", method="large")
+
+                Beam.createObject('BoxROI', name="boxFixed", box="0.0250 -0.015 -0.005 0.05 0.015 0.005", drawBoxes="true")
+                Beam.createObject('FixedConstraint', indices="@boxFixed.indices")
+
+                return rootNode
